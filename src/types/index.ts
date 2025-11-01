@@ -6,8 +6,4 @@ export interface User {
   avatar?: string;
 }
 
-export interface MenuItem {
-  name: string;
-  path: string;
-  icon: string;
-}
+// On garde simple pour l'instant, on ajoutera les types complexes plus tard

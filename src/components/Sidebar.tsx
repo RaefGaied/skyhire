@@ -1,32 +1,122 @@
 // components/Sidebar.tsx
 import React from 'react';
-import { MenuItem } from '../types';
+import { NavLink, useLocation } from 'react-router-dom';
+import {
+  FiLayout,
+  FiFileText,
+  FiMic,
+  FiSend,
+  FiUsers,
+  FiBookOpen,
+  FiLogOut,
+  FiChevronRight,
+} from 'react-icons/fi';
+import sidebarImage from '../assets/sidebar-image.jpg';
 
-const menuItems: MenuItem[] = [
-  { name: 'Dashboard', path: '/', icon: '🏠' },
-  { name: 'CV & Profile', path: '/cv', icon: '📄' },
-  { name: 'Interview Coach', path: '/interview', icon: '🎤' },
-  { name: 'Flight Opportunities', path: '/jobs', icon: '✈️' },
-  { name: 'Crew Network', path: '/network', icon: '👥' },
-  { name: 'Career Guide', path: '/career', icon: '📚' },
+const menuItems = [
+  { name: 'Dashboard', path: '/', Icon: FiLayout },
+  { name: 'CV & Profile', path: '/cv', Icon: FiFileText },
+  { name: 'Interview coach', path: '/interview', Icon: FiMic },
+  { name: 'Flight opportunities', path: '/jobs', Icon: FiSend },
+  { name: 'Crew network', path: '/network', Icon: FiUsers },
+  { name: 'Career Guide', path: '/career', Icon: FiBookOpen },
 ];
 
 const Sidebar: React.FC = () => {
+  const location = useLocation();
+
   return (
-    <div className="w-64 bg-white shadow-sm min-h-screen p-4">
-      <nav className="space-y-2">
-        {menuItems.map((item) => (
-          <a
-            key={item.name}
-            href={item.path}
-            className="flex items-center p-3 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-          >
-            <span className="mr-3 text-lg">{item.icon}</span>
-            <span className="font-medium">{item.name}</span>
-          </a>
-        ))}
-      </nav>
-    </div>
+    <aside className="relative flex w-72 min-h-screen flex-col overflow-hidden rounded-[28px] text-white shadow-[0_20px_50px_rgba(12,14,32,0.3)]">
+      {/* Background avec image blur */}
+      <div className="absolute inset-0">
+        <div
+          className="absolute inset-0 scale-110 bg-cover bg-center blur-md"
+          style={{ backgroundImage: `url(${sidebarImage})` }}
+        />
+        <div className="absolute inset-0 rounded-[28px] border border-white/15" />
+      </div>
+      
+      {/* Contenu compact */}
+      <div className="relative flex h-full flex-col px-6 py-8">
+        {/* Header réduit */}
+        <div className="mb-8">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/20 bg-white/10 backdrop-blur-sm">
+              <span className="text-base font-semibold tracking-[0.3em] uppercase text-white/80">UT</span>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.3em] text-white/60">UtopiaHire</p>
+              <h1 className="text-2xl font-bold font-emirates leading-tight">SkyHire</h1>
+            </div>
+          </div>
+          <p className="font-montessart text-xs italic text-white/70">"Your Career Takes Off Here."</p>
+        </div>
+
+        {/* Navigation compacte */}
+        <nav className="space-y-2">
+          {menuItems.map((item) => {
+            const isActive = location.pathname === item.path;
+            const Icon = item.Icon;
+
+            return (
+              <NavLink
+                key={item.name}
+                to={item.path}
+                className={`group relative flex items-center justify-between rounded-2xl border px-4 py-3 transition-all duration-200 ${
+                  isActive
+                    ? 'border-white/60 bg-white/20 shadow-[0_12px_30px_rgba(6,10,38,0.4)]'
+                    : 'border-white/10 bg-white/5 hover:border-white/30 hover:bg-white/10'
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {/* Checkbox SEULEMENT visible quand la page est active */}
+                  {isActive && (
+                    <div className="w-4 h-4 rounded border-2 border-white bg-white flex items-center justify-center">
+                      <span className="text-[#423772] text-[10px] font-bold">✓</span>
+                    </div>
+                  )}
+                  
+                  {/* Icône réduite */}
+                  <span
+                    className={`flex h-10 w-10 items-center justify-center rounded-xl transition-all duration-200 ${
+                      isActive
+                        ? 'bg-gradient-to-br from-white to-white/70 text-[#312456]'
+                        : 'bg-white/10 text-white group-hover:bg-white/20'
+                    }`}
+                  >
+                    <Icon className="text-xl" />
+                  </span>
+                  
+                  {/* Texte réduit */}
+                  <span
+                    className={`font-montessart text-base tracking-wide transition-colors ${
+                      isActive ? 'font-semibold text-white' : 'text-white/80 group-hover:text-white'
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                </div>
+                
+                {/* Chevron réduit */}
+                <FiChevronRight
+                  className={`text-lg transition-colors ${
+                    isActive ? 'text-white' : 'text-white/40 group-hover:text-white'
+                  }`}
+                />
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* Sign Out réduit */}
+        <div className="mt-auto pt-8">
+          <button className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 font-montessart text-sm text-white/80 transition-all duration-200 hover:border-white/40 hover:bg-white/15 hover:text-white">
+            <FiLogOut className="text-base" />
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+    </aside>
   );
 };
 

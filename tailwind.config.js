@@ -1,4 +1,4 @@
-/** @type {import('tailwindcss').Config} */
+// tailwind.config.js
 module.exports = {
   content: [
     "./src/**/*.{js,jsx,ts,tsx}",
@@ -6,9 +6,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: '#2563eb',     // Bleu aviation
-        secondary: '#0ea5e9',   // Bleu clair
-        accent: '#f59e0b',      // Orange
+        primary: '#423772',     // Violet exact de la maquette
+        secondary: '#6D5BA6',   // Violet plus clair
+        accent: '#FF6B35',      // Orange pour accents
+      },
+      fontFamily: {
+        'emirates': ['Montserrat', 'sans-serif'], // Fallback pour Emirates
+        'montessart': ['Montserrat', 'sans-serif'],
       }
     },
   },
