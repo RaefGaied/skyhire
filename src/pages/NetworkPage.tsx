@@ -1,137 +1,108 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FiSearch, FiMessageCircle, FiCheck, FiUserPlus, FiUsers, FiClock, FiSend, FiX } from "react-icons/fi";
 import { useToast } from "../context/ToastContext";
+import { userService } from "../services/userService";
+import { authService } from "../services/authService";
+import { useNavigate } from 'react-router-dom';
 
 const NetworkPage: React.FC = () => {
-  const { showSuccess, showInfo } = useToast();
+  const { showSuccess, showInfo, showError } = useToast();
+  const navigate = useNavigate();
+  const currentUser = authService.getCurrentUser();
   const [activeTab, setActiveTab] = useState<'connections' | 'discover'>('connections');
   const [searchTerm, setSearchTerm] = useState('');
-
-  const [connections, setConnections] = useState([
-    {
-      id: 1,
-      name: "Sarah Johnson",
-      position: "Senior Flight Attendant",
-      airline: "Emirates Airlines",
-      connected: true,
-      avatar: "SJ"
-    },
-    {
-      id: 2,
-      name: "James Wilson", 
-      position: "Flight Attendant",
-      airline: "Singapore Airlines",
-      connected: true,
-      avatar: "JW"
-    },
-    {
-      id: 3,
-      name: "Emma Davis",
-      position: "Cabin Crew Manager",
-      airline: "Qatar Airways", 
-      connected: true,
-      avatar: "ED"
-    }
-  ]);
-
-  const [discoverProfiles, setDiscoverProfiles] = useState([
-    {
-      id: 1,
-      name: "Michael Brown",
-      position: "Flight Attendant",
-      airline: "British Airways",
-      mutual: 3,
-      avatar: "MB"
-    },
-    {
-      id: 2,
-      name: "Sophia Martinez",
-      position: "Senior Cabin Crew",
-      airline: "Lufthansa",
-      mutual: 2,
-      avatar: "SM"
-    },
-    {
-      id: 3, 
-      name: "Alex Chen",
-      position: "Aviation Recruiter",
-      airline: "SkyHire Recruitment",
-      mutual: 5,
-      avatar: "AC"
-    }
-  ]);
-
-  const [pendingRequests, setPendingRequests] = useState([
-    {
-      id: 1,
-      name: "David Brown",
-      position: "Flight Attendant",
-      airline: "Emirates Airlines",
-      avatar: "DB"
-    },
-    {
-      id: 2,
-      name: "Emma Wilson", 
-      position: "Recruiter",
-      airline: "Aviation Talent",
-      avatar: "EW"
-    }
-  ]);
+  const [connections, setConnections] = useState<any[]>([]);
+  const [discoverProfiles, setDiscoverProfiles] = useState<any[]>([]);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
   // Handlers pour les interactions
-  const handleConnect = (personId: number) => {
-    const person = discoverProfiles.find(p => p.id === personId);
-    if (person) {
-      // Ajouter aux connections
-      setConnections(prev => [...prev, {
-        id: Date.now(),
-        name: person.name,
-        position: person.position,
-        airline: person.airline,
+  const initials = (name?: string) => (name || 'U').split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase();
+
+  const loadNetwork = async () => {
+    try {
+      setLoading(true);
+      const [conns, reqs, search] = await Promise.all([
+        userService.getConnections(),
+        userService.getPendingRequests(),
+        userService.searchUsers({ limit: 12 })
+      ]);
+      const mappedConns = (conns || []).map((c: any) => ({
+        id: c.user?._id || c.peerId,
+        name: c.user?.name || 'Aviation Professional',
+        position: c.user?.headline || '',
+        airline: c.user?.location || '',
         connected: true,
-        avatar: person.avatar
-      }]);
-      
-      // Retirer de discover
-      setDiscoverProfiles(prev => prev.filter(p => p.id !== personId));
-      
-      showSuccess(`Connection request sent to ${person.name}`);
+        avatar: initials(c.user?.name),
+      }));
+      const mappedReqs = (reqs || []).map((r: any) => ({
+        id: r._id,
+        requesterId: r.user?._id || r.requester,
+        name: r.user?.name || 'Aviation Professional',
+        position: r.user?.headline || '',
+        airline: r.user?.location || '',
+        avatar: initials(r.user?.name),
+      }));
+      const mappedDiscover = (search.users || [])
+        .filter((u: any) => u.userId !== currentUser?.id)
+        .map((u: any) => ({
+          id: u.userId,
+          name: u.name || u.headline || 'Aviation Professional',
+          position: '',
+          airline: u.location || '',
+          mutual: 0,
+          avatar: initials(u.name || u.headline),
+        }));
+      setConnections(mappedConns);
+      setPendingRequests(mappedReqs);
+      setDiscoverProfiles(mappedDiscover);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || 'Failed to load network');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleMessage = (personId: number) => {
+  useEffect(() => {
+    loadNetwork();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleConnect = async (personId: any) => {
+    try {
+      const person = discoverProfiles.find(p => p.id === personId);
+      await userService.sendConnectionRequest(String(personId));
+      showSuccess(`Connection request sent to ${person?.name || 'user'}`);
+      setDiscoverProfiles(prev => prev.filter(p => p.id !== personId));
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || 'Failed to send request');
+    }
+  };
+
+  const handleMessage = (personId: any) => {
     const person = connections.find(p => p.id === personId);
     if (person) {
-      showInfo(`Opening chat with ${person.name}`);
-      // Ici tu intégreras ton système de messagerie
+      navigate(`/chat/${personId}`);
     }
   };
 
-  const handleAcceptRequest = (requestId: number) => {
-    const request = pendingRequests.find(r => r.id === requestId);
-    if (request) {
-      // Ajouter aux connections
-      setConnections(prev => [...prev, {
-        id: Date.now(),
-        name: request.name,
-        position: request.position,
-        airline: request.airline,
-        connected: true,
-        avatar: request.avatar
-      }]);
-      
-      // Retirer des demandes en attente
-      setPendingRequests(prev => prev.filter(r => r.id !== requestId));
-      
-      showSuccess(`Connected with ${request.name}`);
+  const handleAcceptRequest = async (requestId: any) => {
+    try {
+      await userService.acceptConnection(String(requestId));
+      showSuccess('Connected successfully');
+      await loadNetwork();
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || 'Failed to accept');
     }
   };
 
-  const handleRejectRequest = (requestId: number) => {
-    const request = pendingRequests.find(r => r.id === requestId);
-    if (request) {
+  const handleRejectRequest = async (requestId: any) => {
+    try {
+      await userService.rejectConnection(String(requestId));
+      showInfo('Request declined');
       setPendingRequests(prev => prev.filter(r => r.id !== requestId));
-      showInfo(`Request from ${request.name} declined`);
+    } catch (e: any) {
+      showError(e?.response?.data?.message || e?.message || 'Failed to decline');
     }
   };
 

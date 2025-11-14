@@ -22,7 +22,7 @@ const getUserInfo = async (userId, authToken) => {
       const profile = response.data.data.profile;
       return {
         _id: profile.userId, // Utilise userId du profil
-        name: profile.headline || 'Aviation Professional',
+        name: profile.name || profile.headline || 'Aviation Professional',
         avatar: '',
         role: 'candidate',
         email: ''

@@ -5,7 +5,7 @@ import { jobService, MatchingJob } from "../services/jobService";
 import { chatService } from "../services/chatService";
 import { useToast } from '../context/ToastContext';
 import { authService } from '../services/authService';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 
 const JobsPage: React.FC = () => {
   const [visibleJobs, setVisibleJobs] = useState(5);
@@ -26,6 +26,9 @@ const JobsPage: React.FC = () => {
   const [convLoading, setConvLoading] = useState(false);
   const [selectedConvId, setSelectedConvId] = useState<string | null>(null);
   const [sendingShare, setSendingShare] = useState(false);
+  const location = useLocation();
+  const [highlightedJobId, setHighlightedJobId] = useState<string | null>(null);
+  const [sharedJob, setSharedJob] = useState<null | any>(null);
 
   const openShare = async (job: { _id: string; title: string; company: string; location?: string }) => {
     setShareTarget({ id: job._id, title: job.title, company: job.company, location: job.location });
@@ -46,7 +49,8 @@ const JobsPage: React.FC = () => {
     if (!selectedConvId || !shareTarget) return;
     try {
       setSendingShare(true);
-      const content = `Check this job: ${shareTarget.company} - ${shareTarget.title}${shareTarget.location ? ' • ' + shareTarget.location : ''} (Job ID: ${shareTarget.id})`;
+      const link = `/jobs?jobId=${shareTarget.id}`;
+      const content = `Check this job: ${shareTarget.company} - ${shareTarget.title}${shareTarget.location ? ' • ' + shareTarget.location : ''}\nOpen: ${link}`;
       await chatService.sendMessage(selectedConvId, { content, type: 'text' });
       showSuccess('Job shared successfully');
       setShareOpen(false);
@@ -73,6 +77,39 @@ const JobsPage: React.FC = () => {
     };
     load();
   }, []);
+
+  // Parse deep-link jobId from query
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const id = params.get('jobId');
+    if (id) setHighlightedJobId(id);
+  }, [location.search]);
+
+  // When we have a highlighted id, scroll to it if present, otherwise fetch and show single card
+  useEffect(() => {
+    if (!highlightedJobId) return;
+    const found = matches.some(m => m.job._id === highlightedJobId);
+    if (found) {
+      setTimeout(() => {
+        const el = document.getElementById(`job-${highlightedJobId}`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+      setSharedJob(null);
+    } else {
+      (async () => {
+        try {
+          const details = await jobService.getJobDetails(highlightedJobId);
+          setSharedJob(details?.job || null);
+          setTimeout(() => {
+            const el = document.getElementById('shared-job-card');
+            el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 150);
+        } catch (_) {
+          // ignore
+        }
+      })();
+    }
+  }, [highlightedJobId, matches]);
 
   const handleApply = async (jobId: string) => {
     try {
@@ -271,10 +308,34 @@ const JobsPage: React.FC = () => {
 
       {/* Job Cards */}
       <div className="space-y-6">
+        {sharedJob && (
+          <div id="shared-job-card" className="flex flex-col lg:flex-row justify-between items-start bg-yellow-50 border-2 border-yellow-300 rounded-2xl p-6 shadow-lg">
+            <div className="flex-1">
+              <div className="flex items-center gap-3 mb-2">
+                <h2 className="text-xl font-bold text-gray-800 font-emirates">{sharedJob.company}</h2>
+                <span className="text-xs bg-yellow-200 text-yellow-900 px-2 py-1 rounded-full font-montessart font-medium">Shared Job</span>
+              </div>
+              <p className="text-lg font-semibold text-[#423772] font-montessart mb-1">{sharedJob.title}</p>
+              <div className="flex items-center text-gray-600 font-montessart">
+                <FiMapPin size={16} className="mr-2 text-[#423772]" />
+                <span className="text-sm">{sharedJob.location}</span>
+              </div>
+            </div>
+            <div className="mt-4 lg:mt-0">
+              <button 
+                onClick={() => handleApply(sharedJob._id)}
+                className="bg-[#423772] text-white px-4 py-2 rounded-lg font-montessart font-semibold text-sm hover:bg-[#312456] transition-colors whitespace-nowrap"
+              >
+                Apply Now
+              </button>
+            </div>
+          </div>
+        )}
         {filteredAndSortedJobs.map((m) => (
           <div 
             key={m.job._id}
-            className="flex flex-col lg:flex-row justify-between items-start bg-white border border-gray-200 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-[#423772]/30"
+            id={`job-${m.job._id}`}
+            className={`flex flex-col lg:flex-row justify-between items-start bg-white border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:border-[#423772]/30 ${highlightedJobId === m.job._id ? 'border-[#423772] ring-2 ring-[#423772]/40' : 'border-gray-200'}`}
           >
             {/* Left Section - Job Details */}
             <div className="flex-1">

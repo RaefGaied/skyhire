@@ -66,4 +66,52 @@ export const userService = {
     const { data } = await api.delete<SkillsResponse>(`/api/users/skills/${skillId}`);
     return data.data.skills;
   },
+  
+  // Crew Network: connections
+  async getConnections(): Promise<any[]> {
+    const { data } = await api.get('/api/users/connections');
+    return data?.data?.connections || [];
+  },
+
+  async getPendingRequests(): Promise<any[]> {
+    const { data } = await api.get('/api/users/connections/requests');
+    return data?.data?.requests || [];
+  },
+
+  async getConnectionStatus(userId: string): Promise<{ status: string; connectionId?: string }> {
+    const { data } = await api.get(`/api/users/connections/status/${userId}`);
+    return data?.data || { status: 'none' };
+  },
+
+  async sendConnectionRequest(userId: string): Promise<any> {
+    const { data } = await api.post(`/api/users/connections/request/${userId}`);
+    return data?.data || {};
+  },
+
+  async acceptConnection(id: string): Promise<any> {
+    const { data } = await api.post(`/api/users/connections/accept/${id}`);
+    return data?.data || {};
+  },
+
+  async rejectConnection(id: string): Promise<any> {
+    const { data } = await api.post(`/api/users/connections/reject/${id}`);
+    return data?.data || {};
+  },
+
+  async removeConnection(id: string): Promise<any> {
+    const { data } = await api.delete(`/api/users/connections/${id}`);
+    return data?.data || {};
+  },
+
+  // Users search for discovery
+  async searchUsers(params: Partial<{ query: string; skills: string; location: string; role: string; page: number; limit: number }>): Promise<{ users: any[]; page: number; pages: number; total: number; }>{
+    const { data } = await api.get('/api/users/search', { params });
+    const payload = data?.data || {};
+    return {
+      users: payload.users || [],
+      page: payload.pagination?.page || 1,
+      pages: payload.pagination?.pages || 1,
+      total: payload.pagination?.total || 0,
+    };
+  },
 };

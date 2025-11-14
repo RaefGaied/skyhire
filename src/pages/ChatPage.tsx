@@ -1,7 +1,8 @@
 // pages/ChatPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
-import { FiSearch, FiSend, FiPaperclip, FiImage, FiUser } from 'react-icons/fi';
+import { useParams, Link } from 'react-router-dom';
+import { FiSearch, FiSend, FiUser } from 'react-icons/fi';
+
 import { chatService } from '../services/chatService';
 import { authService } from '../services/authService';
 import { io, Socket } from 'socket.io-client';
@@ -81,12 +82,13 @@ const ChatPage: React.FC = () => {
       try {
         const { conversations } = await chatService.getConversations();
         const mapped = conversations.map(conv => {
-          const other = conv.participants.map(p => p.user).find(u => u && u._id !== currentUser?.id) || conv.participants[0]?.user;
-          const name = other?.name || 'Unknown User';
-          const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'U';
+          const otherParticipant = conv.participants.find((p: any) => (p.userId || p.user?._id) !== currentUser?.id) || conv.participants[0];
+          const otherId = otherParticipant?.userId || otherParticipant?.user?._id;
+          const name = otherParticipant?.user?.name || 'Aviation Professional';
+          const initials = (name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() || 'U';
           return {
             id: conv._id,
-            peerId: other?._id,
+            peerId: otherId,
             name,
             position: '',
             airline: '',
@@ -96,20 +98,33 @@ const ChatPage: React.FC = () => {
             unread: conv.unreadCount || 0
           } as Contact;
         });
-        setContacts(mapped);
+        // Deduplicate by peerId (keep most recent)
+        const byPeer = new Map<string, Contact>();
+        mapped.forEach(c => {
+          const key = c.peerId || c.id;
+          const prev = byPeer.get(key);
+          const t = c.lastActive ? new Date(c.lastActive).getTime() : 0;
+          const pt = prev?.lastActive ? new Date(prev.lastActive).getTime() : 0;
+          if (!prev || t >= pt) byPeer.set(key, c);
+        });
+        const unique = Array.from(byPeer.values());
+        setContacts(unique);
+
         let initial: Contact | null = null;
         if (userId) {
-          initial = mapped.find(c => c.peerId === userId) || null;
+          initial = unique.find(c => c.peerId === userId) || null;
+
           if (!initial) {
             // start a new conversation with this user
             try {
               const conv = await chatService.startConversation([userId]);
-              const other = conv.participants.map(p => p.user).find(u => u && u._id !== currentUser?.id) || conv.participants[0]?.user;
-              const name = other?.name || 'Unknown User';
-              const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'U';
+              const otherParticipant = conv.participants.find((p: any) => (p.userId || p.user?._id) !== currentUser?.id) || conv.participants[0];
+              const otherId = otherParticipant?.userId || otherParticipant?.user?._id;
+              const name = otherParticipant?.user?.name || 'Aviation Professional';
+              const initials = (name || 'U').split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() || 'U';
               initial = {
                 id: conv._id,
-                peerId: other?._id,
+                peerId: otherId,
                 name,
                 position: '',
                 airline: '',
@@ -124,6 +139,7 @@ const ChatPage: React.FC = () => {
             }
           }
         }
+
         if (!initial) initial = mapped[0] || null;
         if (initial) {
           setSelectedContact(initial);
@@ -185,6 +201,32 @@ const ChatPage: React.FC = () => {
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const renderMessageContent = (text: string, isUser: boolean) => {
+    const lines = text.split('\n');
+    return (
+      <div className="font-montessart">
+        {lines.map((line, idx) => {
+          const openPrefix = 'Open:';
+          if (line.trim().startsWith(openPrefix)) {
+            const to = line.replace(openPrefix, '').trim();
+            return (
+              <div key={idx} className="mt-1">
+                <Link to={to} className={isUser ? 'underline text-white' : 'underline text-[#423772]'}>
+                  View job
+                </Link>
+              </div>
+            );
+          }
+          return (
+            <div key={idx} className="whitespace-pre-wrap">
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -294,9 +336,8 @@ const ChatPage: React.FC = () => {
                           : 'bg-white text-gray-800 rounded-bl-none shadow-sm border border-gray-200'
                       }`}
                     >
-                      <div className="whitespace-pre-line font-montessart">
-                        {message.text}
-                      </div>
+                      {renderMessageContent(message.text, message.sender === 'user')}
+
                       <div className={`text-xs mt-2 ${
                         message.sender === 'user' ? 'text-white/70' : 'text-gray-500'
                       }`}>
@@ -316,14 +357,6 @@ const ChatPage: React.FC = () => {
               {/* Input Area */}
               <div className="p-4 border-t border-gray-200">
                 <div className="flex gap-3">
-                  <div className="flex gap-2">
-                    <button className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                      <FiPaperclip className="text-lg" />
-                    </button>
-                    <button className="w-10 h-10 bg-gray-100 rounded-xl flex items-center justify-center text-gray-600 hover:bg-gray-200 transition-colors">
-                      <FiImage className="text-lg" />
-                    </button>
-                  </div>
                   <textarea
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}

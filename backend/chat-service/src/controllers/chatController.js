@@ -32,8 +32,22 @@ const getConversations = async (req, res) => {
     const authToken = req.headers.authorization;
     const usersMap = await getMultipleUsersInfo(Array.from(allUserIds), authToken);
 
+    // Compute per-user unread counts
+    const unreadCounts = await Promise.all(conversations.map(async (conv) => {
+      const me = req.user.id.toString();
+      const meParticipant = conv.participants.find(p => p.userId.toString() === me);
+      const lastReadAt = meParticipant?.lastRead || new Date(0);
+      const count = await Message.countDocuments({
+        conversationId: conv._id,
+        isDeleted: false,
+        createdAt: { $gt: lastReadAt },
+        sender: { $ne: req.user.id }
+      });
+      return count;
+    }));
+
     // Formater les conversations avec les données utilisateur
-    const formattedConversations = conversations.map(conv => ({
+    const formattedConversations = conversations.map((conv, idx) => ({
       _id: conv._id,
       participants: conv.participants.map(participant => ({
         userId: participant.userId,
@@ -57,7 +71,7 @@ const getConversations = async (req, res) => {
         timestamp: conv.lastMessage.timestamp,
         type: conv.lastMessage.type
       } : null,
-      unreadCount: conv.unreadCount,
+      unreadCount: unreadCounts[idx] || 0,
       isActive: conv.isActive,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt
@@ -171,10 +185,7 @@ const getMessages = async (req, res) => {
         'participants.userId': req.user.id 
       },
       { 
-        $set: { 
-          'participants.$.lastRead': new Date(),
-          unreadCount: 0
-        }
+        $set: { 'participants.$.lastRead': new Date() }
       }
     );
 
@@ -239,15 +250,14 @@ const sendMessage = async (req, res) => {
       }]
     });
 
-    // Mettre à jour la conversation
+    // Mettre à jour la conversation (ne pas modifier unreadCount global)
     await Conversation.findByIdAndUpdate(id, {
       lastMessage: {
         content: content || 'Attachment',
         sender: req.user.id,
         timestamp: new Date(),
         type
-      },
-      $inc: { unreadCount: conversation.participants.length - 1 } // Tous sauf l'envoyeur
+      }
     });
 
     // Récupérer les infos de l'expéditeur via API
@@ -349,12 +359,8 @@ const startConversation = async (req, res) => {
     // Vérifier si une conversation existe déjà
     let conversation = await Conversation.findOne({
       type: 'direct',
-      'participants.userId': { 
-        $all: allUserIds
-      },
-      $expr: { 
-        $eq: [{ $size: "$participants.userId" }, allUserIds.length] 
-      }
+      'participants.userId': { $all: allUserIds },
+      $expr: { $eq: [{ $size: "$participants" }, allUserIds.length] }
     });
 
     if (!conversation) {

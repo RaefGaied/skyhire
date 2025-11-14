@@ -1,5 +1,6 @@
 // user-service/src/controllers/userController.js
 const UserProfile = require('../models/UserProfile');
+const mongoose = require('mongoose');
 
 // Obtenir le profil complet
 // user-service/src/controllers/userController.js - MODIFIER getProfile
@@ -325,6 +326,13 @@ const getUserById = async (req, res) => {
     const { userId } = req.params;
     
     console.log('🔍 [USER-SERVICE] Fetching user by ID:', userId);
+
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Invalid user id'
+      });
+    }
 
     // 🔥 SOLUTION : Ne pas utiliser populate, récupérer directement UserProfile
     const profile = await UserProfile.findOne({ userId });

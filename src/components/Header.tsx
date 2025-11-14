@@ -1,16 +1,33 @@
 // components/Header.tsx - Version finale avec Account Settings
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FiUser, FiLogOut, FiBell, FiSettings, FiChevronDown, FiMessageCircle } from 'react-icons/fi';
 import { authService } from '../services/authService';
+import { chatService } from '../services/chatService';
 
 const Header: React.FC = () => {
   const navigate = useNavigate();
   const currentUser = authService.getCurrentUser();
 
-  // Pour l'instant, on utilise une valeur fixe - plus tard tu connecteras avec ton état global
-  const unreadNotifications = 3;
-  const unreadMessages = 2;
+  // Unread counters
+  const [unreadNotifications, setUnreadNotifications] = useState<number>(0);
+  const [unreadMessages, setUnreadMessages] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const { conversations } = await chatService.getConversations({ limit: 50 });
+        const total = (conversations || []).reduce((acc: number, c: any) => acc + (c.unreadCount || 0), 0);
+        if (mounted) setUnreadMessages(total);
+      } catch {
+        if (mounted) setUnreadMessages(0);
+      }
+    };
+    load();
+    const id = setInterval(load, 15000); // refresh periodically
+    return () => { mounted = false; clearInterval(id); };
+  }, []);
 
   const handleLogout = () => {
     authService.logout();
