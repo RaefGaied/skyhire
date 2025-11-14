@@ -2,6 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { FiSearch, FiSend, FiPaperclip, FiImage, FiUser } from 'react-icons/fi';
+import { chatService } from '../services/chatService';
+import { authService } from '../services/authService';
+import { io, Socket } from 'socket.io-client';
 
 interface Message {
   id: string;
@@ -13,6 +16,7 @@ interface Message {
 
 interface Contact {
   id: string;
+  peerId?: string;
   name: string;
   position: string;
   airline: string;
@@ -24,116 +28,152 @@ interface Contact {
 
 const ChatPage: React.FC = () => {
   const { userId } = useParams();
+  const currentUser = authService.getCurrentUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [contacts, setContacts] = useState<Contact[]>([
-    {
-      id: '1',
-      name: 'Sarah Johnson',
-      position: 'Senior Flight Attendant',
-      airline: 'Emirates Airlines',
-      avatar: 'SJ',
-      lastMessage: 'Looking forward to connecting!',
-      lastActive: '2 min ago',
-      unread: 0
-    },
-    {
-      id: '2',
-      name: 'James Wilson',
-      position: 'Flight Attendant',
-      airline: 'Singapore Airlines',
-      avatar: 'JW',
-      lastMessage: 'Thanks for the advice!',
-      lastActive: '1 hour ago',
-      unread: 3
-    },
-    {
-      id: '3',
-      name: 'Emma Davis',
-      position: 'Cabin Crew Manager',
-      airline: 'Qatar Airways',
-      avatar: 'ED',
-      lastMessage: 'Let me know if you need any help',
-      lastActive: '5 hours ago',
-      unread: 0
-    }
-  ]);
-  
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<Socket | null>(null);
+
+  // Socket.IO connection
+  useEffect(() => {
+    const token = authService.getToken();
+    const url = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+    const socket = io(url, {
+      path: '/socket.io/chat',
+      auth: { token: token || '' },
+      transports: ['websocket']
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      socket.emit('join-conversations');
+    });
+
+    socket.on('new-message', (payload: any) => {
+      if (!payload || !payload.message) return;
+      const { conversationId, message } = payload;
+      setMessages(prev => {
+        if (conversationId !== selectedConversationId) return prev;
+        const mapped: Message = {
+          id: message._id,
+          text: message.content,
+          sender: ((message.sender && message.sender._id) === currentUser?.id) ? 'user' : 'contact',
+          timestamp: new Date(message.createdAt || Date.now()),
+          read: true
+        };
+        return [...prev, mapped];
+      });
+    });
+
+    return () => {
+      try { socket.disconnect(); } catch (_) {}
+      socketRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Simuler des messages initiaux
   useEffect(() => {
-    if (userId && contacts.length > 0) {
-      const contact = contacts.find(c => c.id === userId) || contacts[0];
-      setSelectedContact(contact);
-      
-      // Messages simulés
-      const initialMessages: Message[] = [
-        {
-          id: '1',
-          text: "Hi there! Thanks for connecting with me.",
-          sender: 'contact',
-          timestamp: new Date(Date.now() - 3600000),
-          read: true
-        },
-        {
-          id: '2',
-          text: "Hello! I'm interested in learning more about your experience at Emirates.",
-          sender: 'user',
-          timestamp: new Date(Date.now() - 3500000),
-          read: true
-        },
-        {
-          id: '3',
-          text: "I'd be happy to share my experience. What would you like to know?",
-          sender: 'contact',
-          timestamp: new Date(Date.now() - 3400000),
-          read: true
-        },
-        {
-          id: '4',
-          text: "How was the training process and what are the key qualities they look for?",
-          sender: 'user',
-          timestamp: new Date(Date.now() - 3300000),
-          read: true
+    const load = async () => {
+      try {
+        const { conversations } = await chatService.getConversations();
+        const mapped = conversations.map(conv => {
+          const other = conv.participants.map(p => p.user).find(u => u && u._id !== currentUser?.id) || conv.participants[0]?.user;
+          const name = other?.name || 'Unknown User';
+          const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'U';
+          return {
+            id: conv._id,
+            peerId: other?._id,
+            name,
+            position: '',
+            airline: '',
+            avatar: initials,
+            lastMessage: conv.lastMessage?.content || '',
+            lastActive: conv.lastMessage?.timestamp ? new Date(conv.lastMessage.timestamp).toLocaleString() : '',
+            unread: conv.unreadCount || 0
+          } as Contact;
+        });
+        setContacts(mapped);
+        let initial: Contact | null = null;
+        if (userId) {
+          initial = mapped.find(c => c.peerId === userId) || null;
+          if (!initial) {
+            // start a new conversation with this user
+            try {
+              const conv = await chatService.startConversation([userId]);
+              const other = conv.participants.map(p => p.user).find(u => u && u._id !== currentUser?.id) || conv.participants[0]?.user;
+              const name = other?.name || 'Unknown User';
+              const initials = name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() || 'U';
+              initial = {
+                id: conv._id,
+                peerId: other?._id,
+                name,
+                position: '',
+                airline: '',
+                avatar: initials,
+                lastMessage: conv.lastMessage?.content || '',
+                lastActive: conv.lastMessage?.timestamp ? new Date(conv.lastMessage.timestamp).toLocaleString() : '',
+                unread: conv.unreadCount || 0
+              };
+              setContacts(prev => [initial as Contact, ...prev]);
+            } catch (_) {
+              // ignore
+            }
+          }
         }
-      ];
-      
-      setMessages(initialMessages);
-    }
-  }, [userId, contacts]);
+        if (!initial) initial = mapped[0] || null;
+        if (initial) {
+          setSelectedContact(initial);
+          setSelectedConversationId(initial.id);
+          await loadMessages(initial.id);
+        }
+      } catch (e) {
+        // noop
+      }
+    };
+
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const loadMessages = async (conversationId: string) => {
+    const { messages } = await chatService.getMessages(conversationId);
+    const mapped: Message[] = messages.map(m => ({
+      id: m._id,
+      text: m.content,
+      sender: (m.sender && (m.sender as any)._id) === currentUser?.id ? 'user' : 'contact',
+      timestamp: new Date(m.createdAt),
+      read: true
+    }));
+    setMessages(mapped);
+  };
 
   // Scroll vers le bas des messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim() || !selectedContact) return;
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || !selectedContact || !selectedConversationId) return;
 
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      text: inputMessage,
-      sender: 'user',
-      timestamp: new Date(),
-      read: true
-    };
-
-    setMessages(prev => [...prev, newMessage]);
+    const content = inputMessage;
     setInputMessage('');
-
-    // Simuler une réponse après 2 secondes
-    setTimeout(() => {
-      const response: Message = {
-        id: (Date.now() + 1).toString(),
-        text: "That's a great question! The training was intensive but very rewarding. They focus heavily on safety procedures and customer service excellence.",
-        sender: 'contact',
-        timestamp: new Date(),
-        read: false
+    try {
+      const sent = await chatService.sendMessage(selectedConversationId, { content, type: 'text' });
+      const mapped: Message = {
+        id: sent._id,
+        text: sent.content,
+        sender: 'user',
+        timestamp: new Date((sent as any).createdAt || Date.now()),
+        read: true
       };
-      setMessages(prev => [...prev, response]);
-    }, 2000);
+      setMessages(prev => [...prev, mapped]);
+    } catch (_) {
+      // ignore
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -179,7 +219,7 @@ const ChatPage: React.FC = () => {
             {contacts.map((contact) => (
               <div
                 key={contact.id}
-                onClick={() => setSelectedContact(contact)}
+                onClick={() => { setSelectedContact(contact); setSelectedConversationId(contact.id); loadMessages(contact.id); if (socketRef.current) { socketRef.current.emit('join-conversation', contact.id); } }}
                 className={`p-4 border-b border-gray-100 cursor-pointer transition-all ${
                   selectedContact?.id === contact.id
                     ? 'bg-[#423772]/10 border-l-4 border-l-[#423772]'
@@ -191,7 +231,6 @@ const ChatPage: React.FC = () => {
                   <div className="w-12 h-12 bg-gradient-to-br from-[#423772] to-[#6D5BA6] rounded-xl flex items-center justify-center text-white font-bold font-emirates">
                     {contact.avatar}
                   </div>
-                  
                   {/* Contact Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-start mb-1">

@@ -382,7 +382,6 @@ const getApplicationsForJob = async (req, res) => {
     }
 
     const applications = await Application.find({ jobId: id })
-      .populate('userId', 'name email')
       .sort({ appliedAt: -1 });
 
     res.json({
@@ -699,8 +698,7 @@ const updateApplicationStatus = async (req, res) => {
         updatedAt: new Date()
       },
       { new: true }
-    ).populate('jobId', 'title company')
-     .populate('userId', 'name email');
+    ).populate('jobId', 'title company');
 
     if (!application) {
       return res.status(404).json({

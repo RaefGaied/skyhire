@@ -115,5 +115,10 @@ export const jobService = {
     const { data } = await api.patch(`/api/jobs/applications/${applicationId}/status`, { status, notes });
     return data;
   },
+
+  async addApplicationCommunication(applicationId: string, payload: Partial<{ type: string; subject: string; content: string; from: string; to: string; }>): Promise<any> {
+    const { data } = await api.post(`/api/jobs/applications/${applicationId}/communication`, payload);
+    return data;
+  },
 };
 
