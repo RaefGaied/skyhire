@@ -1,6 +1,6 @@
 // components/Sidebar.tsx
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiLayout,
   FiFileText,
@@ -26,6 +26,7 @@ const menuItems = [
 
 const Sidebar: React.FC = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentUser = authService.getCurrentUser();
 
   return (
@@ -165,7 +166,7 @@ const Sidebar: React.FC = () => {
 
         {/* Sign Out réduit */}
         <div className="mt-auto pt-8">
-          <button className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 font-montessart text-sm text-white/80 transition-all duration-200 hover:border-white/40 hover:bg-white/15 hover:text-white">
+          <button onClick={() => { authService.logout(); navigate('/login'); }} className="group flex w-full items-center justify-center gap-2 rounded-2xl border border-white/20 bg-white/5 px-4 py-3 font-montessart text-sm text-white/80 transition-all duration-200 hover:border-white/40 hover:bg-white/15 hover:text-white">
             <FiLogOut className="text-base" />
             <span>Sign out</span>
           </button>

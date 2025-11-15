@@ -1,0 +1,22 @@
+{
+  "name": "skyhire-backend-dev",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Aggregator to run all SkyHire backend services with one command",
+  "scripts": {
+    "install:all": "npm i --prefix api-gateway && npm i --prefix auth-service && npm i --prefix user-service && npm i --prefix cv-service && npm i --prefix interview-service && npm i --prefix job-service && npm i --prefix chat-service && npm i --prefix notifications-service",
+    "dev:gateway": "npm run dev --prefix api-gateway",
+    "dev:auth": "npm run dev --prefix auth-service",
+    "dev:user": "npm run dev --prefix user-service",
+    "dev:cv": "npm run dev --prefix cv-service",
+    "dev:interview": "npm run dev --prefix interview-service",
+    "dev:jobs": "npm run dev --prefix job-service",
+    "dev:chat": "npm run dev --prefix chat-service",
+    "dev:notifications": "npm run dev --prefix notifications-service",
+    "dev:all": "concurrently -k -n gateway,auth,user,cv,interview,jobs,chat,notifications -c magenta,blue,green,cyan,yellow,white,red,gray \"npm:dev:gateway\" \"npm:dev:auth\" \"npm:dev:user\" \"npm:dev:cv\" \"npm:dev:interview\" \"npm:dev:jobs\" \"npm:dev:chat\" \"npm:dev:notifications\"",
+    "start:all": "concurrently -k -n gateway,auth,user,cv,interview,jobs,chat,notifications -c magenta,blue,green,cyan,yellow,white,red,gray \"npm --prefix api-gateway start\" \"npm --prefix auth-service start\" \"npm --prefix user-service start\" \"npm --prefix cv-service start\" \"npm --prefix interview-service start\" \"npm --prefix job-service start\" \"npm --prefix chat-service start\" \"npm --prefix notifications-service start\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

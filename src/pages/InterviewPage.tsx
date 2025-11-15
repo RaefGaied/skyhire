@@ -14,6 +14,7 @@ const InterviewPage: React.FC = () => {
   const [isInterviewActive, setIsInterviewActive] = useState(false);
   const [time, setTime] = useState("12:47");
   const previewRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const [feedback] = useState<FeedbackItem[]>([
     { label: "Well-groomed", score: 8.9, color: "#6D5AE6" },
@@ -29,10 +30,7 @@ const InterviewPage: React.FC = () => {
         video: true,
         audio: true,
       });
-
-      // ✅ assigner le flux uniquement à la preview
-      if (previewRef.current) previewRef.current.srcObject = stream;
-
+      streamRef.current = stream;
       setIsInterviewActive(true);
     } catch (err) {
       console.error("Camera error:", err);
@@ -40,8 +38,10 @@ const InterviewPage: React.FC = () => {
   };
 
   const stopInterview = () => {
-    const stream = previewRef.current?.srcObject as MediaStream;
+    const stream = (previewRef.current?.srcObject as MediaStream) || streamRef.current;
     if (stream) stream.getTracks().forEach((t) => t.stop());
+    if (previewRef.current) previewRef.current.srcObject = null;
+    streamRef.current = null;
     setIsInterviewActive(false);
   };
 
@@ -53,6 +53,18 @@ const InterviewPage: React.FC = () => {
       setTime(`${now.getHours()}:${now.getMinutes().toString().padStart(2, "0")}`);
     }, 1000);
     return () => clearInterval(interval);
+  }, [isInterviewActive]);
+
+  // Attach stream to video once the preview element is mounted
+  useEffect(() => {
+    if (isInterviewActive && previewRef.current && streamRef.current) {
+      try {
+        previewRef.current.srcObject = streamRef.current;
+        const v = previewRef.current as HTMLVideoElement;
+        const play = () => v.play().catch(() => {});
+        if (v.readyState >= 2) play(); else v.onloadedmetadata = play;
+      } catch (_) {}
+    }
   }, [isInterviewActive]);
 
   return (
@@ -84,7 +96,7 @@ const InterviewPage: React.FC = () => {
                 autoPlay
                 muted
                 playsInline
-                className="absolute bottom-4 right-4 w-44 h-32 border-2 border-white rounded-lg shadow-lg object-cover"
+                className="absolute bottom-4 right-4 w-44 h-32 border-2 border-white rounded-lg shadow-lg object-cover z-20"
               />
             )}
 

@@ -1,6 +1,8 @@
 // chat-service/src/controllers/chatController.js
 const Conversation = require('../models/Conversation');
 const Message = require('../models/Message');
+const mongoose = require('mongoose');
+
 const { getMultipleUsersInfo, getUserInfo, getUserPrefs } = require('../services/userService');
 
 const axios = require('axios');
@@ -359,10 +361,8 @@ const startConversation = async (req, res) => {
       });
     }
 
-    // Filtrer les IDs valides
-    const validParticipantIds = participantIds.filter(id => 
-      id && typeof id === 'string' && id.length === 24
-    );
+    // Filtrer et normaliser les IDs (24 hex chars)
+    const validParticipantIds = participantIds.filter(id => id && typeof id === 'string' && id.match(/^[a-fA-F0-9]{24}$/));
 
     if (validParticipantIds.length === 0) {
       return res.status(400).json({
@@ -372,7 +372,9 @@ const startConversation = async (req, res) => {
     }
 
     // Inclure l'utilisateur courant dans les participants
-    const allUserIds = [...new Set([req.user.id, ...validParticipantIds])];
+    const allUserIds = [...new Set([String(req.user.id), ...validParticipantIds.map(String)])];
+    const allObjectIds = allUserIds.map(id => new mongoose.Types.ObjectId(id));
+
     const allParticipants = allUserIds.map(userId => ({
       userId,
       lastRead: new Date()
@@ -383,8 +385,8 @@ const startConversation = async (req, res) => {
     // Vérifier si une conversation existe déjà
     let conversation = await Conversation.findOne({
       type: 'direct',
-      'participants.userId': { $all: allUserIds },
-      $expr: { $eq: [{ $size: "$participants" }, allUserIds.length] }
+      'participants.userId': { $all: allObjectIds },
+      $expr: { $eq: [{ $size: "$participants" }, allObjectIds.length] }
     });
 
     if (!conversation) {
